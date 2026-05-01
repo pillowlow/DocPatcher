@@ -1,6 +1,9 @@
+from typing import Any
+
 from openai import OpenAI
 
 from app.models.block import Block
+from app.services.llm.responses_model_params import responses_api_supports_temperature
 from app.models.proposal import ProposalItem
 from app.models.requirement import Requirement
 from app.services.llm.base import LLMProvider
@@ -19,14 +22,16 @@ class OpenAIProvider(LLMProvider):
             "keys: should_change, reason, proposed_text, risk_level."
         )
         user_input = f"Requirement: {requirement.text}\nBlock: {block.text}"
-        response = self.client.responses.create(
-            model=self.model_name,
-            input=[
+        kwargs: dict[str, Any] = {
+            "model": self.model_name,
+            "input": [
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": user_input},
             ],
-            temperature=self.temperature,
-        )
+        }
+        if responses_api_supports_temperature(self.model_name):
+            kwargs["temperature"] = self.temperature
+        response = self.client.responses.create(**kwargs)
         output_text = (response.output_text or "").strip()
         should_change = output_text.lower() != block.text.lower()
         return ProposalItem(

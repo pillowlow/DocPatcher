@@ -1,11 +1,13 @@
 import csv
 import json
 from pathlib import Path
+from typing import Any
 
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
 from app.core.settings import Settings
+from app.services.llm.responses_model_params import responses_api_supports_temperature
 from app.models.block import Block
 from app.models.workspace import ResolvedProjectPaths
 from app.services.artifacts import write_json
@@ -76,12 +78,11 @@ def run_openai_document_extraction(
     temperature: float,
 ) -> DocumentExtractionResult:
     """Call Responses API: ``instructions`` = agent system prompt; ``input`` = task + document."""
-    resp = client.responses.create(
-        model=model_name,
-        instructions=agent_system_prompt,
-        input=user_input,
-        temperature=temperature,
-        text={
+    kwargs: dict[str, Any] = {
+        "model": model_name,
+        "instructions": agent_system_prompt,
+        "input": user_input,
+        "text": {
             "format": {
                 "type": "json_schema",
                 "name": "document_extraction",
@@ -89,7 +90,10 @@ def run_openai_document_extraction(
                 "strict": True,
             }
         },
-    )
+    }
+    if responses_api_supports_temperature(model_name):
+        kwargs["temperature"] = temperature
+    resp = client.responses.create(**kwargs)
     raw = (resp.output_text or "").strip()
     if not raw:
         raise ValueError("OpenAI extraction returned empty output.")

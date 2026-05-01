@@ -10,6 +10,18 @@ from app.core.settings import Settings
 from app.services.artifacts import write_json
 from app.services.document_extraction import extract_overview_and_content_sheet
 from app.services.docx_parser import parse_docx_to_blocks
+from app.services.extract_progress import (
+    ExtractProgressEvent,
+    ExtractProgressKind,
+    ProgressCallback,
+    emit_batch_begin,
+    emit_batch_done,
+)
+
+
+def _notify(on_progress: ProgressCallback | None, event: ExtractProgressEvent) -> None:
+    if on_progress:
+        on_progress(event)
 
 
 def list_input_docx_files(project_paths) -> list[Path]:
@@ -50,6 +62,9 @@ def run_extract_overview(
     input_doc_path: Path,
     doc_id: str,
     settings: Settings,
+    on_progress: ProgressCallback | None = None,
+    batch_doc_index: int = 1,
+    batch_doc_total: int = 1,
 ) -> dict[str, str | int]:
     """Parse ``input_doc_path``, call the model, write overview + sheet + JSON under ``intermediate/``.
 
@@ -62,15 +77,70 @@ def run_extract_overview(
     if not path.is_file():
         raise FileNotFoundError(f"Input document not found: {path}")
 
+    i, n = batch_doc_index, batch_doc_total
+    _notify(
+        on_progress,
+        ExtractProgressEvent(
+            ExtractProgressKind.DOC_BEGIN,
+            i,
+            n,
+            path=path,
+            doc_id=doc_id,
+        ),
+    )
     blocks = parse_docx_to_blocks(path, doc_id=doc_id)
+    _notify(
+        on_progress,
+        ExtractProgressEvent(
+            ExtractProgressKind.PARSE_DONE,
+            i,
+            n,
+            path=path,
+            doc_id=doc_id,
+            block_count=len(blocks),
+        ),
+    )
+    _notify(
+        on_progress,
+        ExtractProgressEvent(
+            ExtractProgressKind.LLM_START,
+            i,
+            n,
+            path=path,
+            doc_id=doc_id,
+            block_count=len(blocks),
+        ),
+    )
     parsed_result = extract_overview_and_content_sheet(
         blocks=blocks,
         settings=settings,
         project_paths=settings.project_paths,
         doc_id=doc_id,
     )
+    _notify(
+        on_progress,
+        ExtractProgressEvent(
+            ExtractProgressKind.LLM_DONE,
+            i,
+            n,
+            path=path,
+            doc_id=doc_id,
+            row_count=int(parsed_result["rows"]),
+        ),
+    )
     blocks_path = settings.project_paths.intermediate_dir / "blocks.json"
     write_json(blocks_path, [block.model_dump() for block in blocks])
+    _notify(
+        on_progress,
+        ExtractProgressEvent(
+            ExtractProgressKind.DOC_DONE,
+            i,
+            n,
+            path=path,
+            doc_id=doc_id,
+            row_count=int(parsed_result["rows"]),
+        ),
+    )
     return {
         **parsed_result,
         "blocks": len(blocks),
@@ -80,7 +150,11 @@ def run_extract_overview(
     }
 
 
-def run_extract_overview_all_input_docs(*, settings: Settings) -> dict[str, Any]:
+def run_extract_overview_all_input_docs(
+    *,
+    settings: Settings,
+    on_progress: ProgressCallback | None = None,
+) -> dict[str, Any]:
     """Process every ``*.docx`` in ``input_docs/`` (sorted). Last file determines ``blocks.json``."""
 
     if not settings.openai_api_key.strip():
@@ -92,16 +166,23 @@ def run_extract_overview_all_input_docs(*, settings: Settings) -> dict[str, Any]
             "No .docx files found in input_docs/. Add documents or pass a concrete input path."
         )
 
+    emit_batch_begin(on_progress, len(paths))
     ids = allocate_unique_doc_ids(paths)
     documents: list[dict[str, str | int]] = []
     for doc_path, doc_id in zip(paths, ids, strict=True):
+        idx = len(documents) + 1
         documents.append(
             run_extract_overview(
                 input_doc_path=doc_path,
                 doc_id=doc_id,
                 settings=settings,
+                on_progress=on_progress,
+                batch_doc_index=idx,
+                batch_doc_total=len(paths),
             )
         )
+
+    emit_batch_done(on_progress, len(paths))
 
     return {
         "documents": documents,

@@ -123,6 +123,36 @@ def test_run_openai_document_extraction_parses_response() -> None:
     call_kw = fake_client.responses.create.call_args.kwargs
     assert call_kw["instructions"] == "You are an admin assistant."
     assert "## Task instruction" in call_kw["input"]
+    assert call_kw["temperature"] == 0.0
+
+
+def test_run_openai_document_extraction_omits_temperature_for_gpt5() -> None:
+    payload = DocumentExtractionResult(
+        overview_markdown="# X",
+        content_sheet_rows=[
+            ContentSheetRow(
+                block_id="DOC001-B0000",
+                paragraph_index=0,
+                verbatim_text="Line one",
+                topic_or_heading="intro",
+            )
+        ],
+    )
+    fake_resp = MagicMock()
+    fake_resp.output_text = json.dumps(payload.model_dump())
+
+    fake_client = MagicMock()
+    fake_client.responses.create.return_value = fake_resp
+
+    run_openai_document_extraction(
+        fake_client,
+        agent_system_prompt="sys",
+        user_input="task",
+        model_name="gpt-5-mini",
+        temperature=0.2,
+    )
+    call_kw = fake_client.responses.create.call_args.kwargs
+    assert "temperature" not in call_kw
 
 
 def test_load_task_instruction_reads_txt(tmp_path: Path) -> None:

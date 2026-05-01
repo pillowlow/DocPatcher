@@ -11,8 +11,9 @@ Set it **before** this script runs using any of:
 
 **Default:** omit the input path to process every ``*.docx`` in that project’s ``input_docs/``.
 
-Examples::
+Examples (run from the ``backend/`` directory)::
 
+    cd backend
     python scripts/execute_project.py --project project1/example_project
     python scripts/execute_project.py -p project1/example_project -w ../workspace
     python scripts/execute_project.py --project my/nested/project --input path/to/one.docx
@@ -27,12 +28,23 @@ import sys
 from pathlib import Path
 
 
+def find_backend_install_root() -> Path:
+    """Locate the backend package directory (folder with ``pyproject.toml`` + ``app/``).
+
+    Works whether this file lives at ``<repo>/scripts/execute_project.py`` or
+    ``<repo>/backend/scripts/execute_project.py`` — we walk parents instead of assuming depth.
+    """
+    here = Path(__file__).resolve()
+    for d in here.parents:
+        if (d / "pyproject.toml").is_file() and (d / "app").is_dir():
+            return d
+    raise RuntimeError(
+        f"Could not find backend root (directory with pyproject.toml and app/) above {here}"
+    )
+
+
 def main() -> int:
-    repo = Path(__file__).resolve().parents[1]
-    backend = repo / "backend"
-    if not backend.is_dir():
-        print(f"Expected backend/ at {backend}", file=sys.stderr)
-        return 2
+    backend = find_backend_install_root()
 
     sys.path.insert(0, str(backend))
     os.chdir(backend)
@@ -72,6 +84,12 @@ def main() -> int:
         default=None,
         help="Only for a single file; default is derived from the filename stem",
     )
+    parser.add_argument(
+        "--quiet",
+        "-q",
+        action="store_true",
+        help="Suppress per-document progress lines on stderr (JSON still goes to stdout)",
+    )
     args = parser.parse_args()
 
     if args.workspace_root:
@@ -83,6 +101,11 @@ def main() -> int:
 
     # Import after env overrides so Settings resolves the right project root.
     from app.core.settings import get_settings
+    from app.services.extract_progress import (
+        emit_batch_begin,
+        emit_batch_done,
+        make_cli_stderr_progress,
+    )
     from app.services.project_extract import (
         run_extract_overview,
         run_extract_overview_all_input_docs,
@@ -92,20 +115,27 @@ def main() -> int:
     get_settings.cache_clear()
     settings = get_settings()
 
+    on_progress = None if args.quiet else make_cli_stderr_progress()
+
     try:
         if doc_path:
             inp = Path(doc_path)
             doc_id = args.doc_id or stable_doc_id_from_filename(inp, 1)
+            emit_batch_begin(on_progress, 1)
             result = run_extract_overview(
                 input_doc_path=inp,
                 doc_id=doc_id,
                 settings=settings,
+                on_progress=on_progress,
+                batch_doc_index=1,
+                batch_doc_total=1,
             )
+            emit_batch_done(on_progress, 1)
         else:
             if args.doc_id:
                 print("--doc-id applies only when a single input file is given", file=sys.stderr)
                 return 2
-            result = run_extract_overview_all_input_docs(settings=settings)
+            result = run_extract_overview_all_input_docs(settings=settings, on_progress=on_progress)
     except (ValueError, FileNotFoundError) as e:
         print(e, file=sys.stderr)
         return 1

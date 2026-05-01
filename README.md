@@ -76,9 +76,11 @@ python scripts/init_workspace_project.py nested/new_project
 
 **Which folder is the project root?** It is always **`WORKSPACE_ROOT / project_key`**. If you do nothing, defaults are the **`workspace`** directory next to **`backend/`** and **`project_key`** from **`PROJECT_NAME`** in **`backend/.env`**, else **`workspace/.current_project`**, else **`example_project`**.
 
-Run **extract / summarize** from the shell (same behaviour as **`POST /parse/extract-overview`**):
+Run **extract / summarize** from the shell (same behaviour as **`POST /parse/extract-overview`**). The entrypoint lives at **`backend/scripts/execute_project.py`** — **`cd backend`** first so workspace-relative paths behave like the API:
 
 ```bash
+cd backend
+
 # Point at a project for this run only (overrides .env for this process)
 python scripts/execute_project.py --project project1
 python scripts/execute_project.py -p project1/example_project ../workspace/project1/example_project/input_docs/your.docx
@@ -92,6 +94,8 @@ python scripts/execute_project.py --project project1
 # Single file path (still set --project if not in .env)
 python scripts/execute_project.py --project project1 ../workspace/project1/input_docs/your.docx
 ```
+
+Or equivalently **`uv run python scripts/execute_project.py …`** from **`backend/`**.
 
 The script prints the resolved **project root** line to **stderr** after the JSON on stdout.
 
@@ -108,7 +112,7 @@ Reviewer-style prompts live here:
 - **System prompt:** **`workspace/project1/prompts/agent_system.md`** (loaded as OpenAI **`instructions`** for extract-overview).
 - **Task prompt:** **`workspace/project1/instructions/full_document_extraction.txt`** (exhaustive extraction / capability test wording; must still satisfy the pipeline JSON schema).
 
-Use **`PROJECT_NAME=project1`** or **`python scripts/execute_project.py --project project1`**. Put **`.docx`** files under **`workspace/project1/input_docs/`**.
+Use **`PROJECT_NAME=project1`** or, from **`backend/`**, **`python scripts/execute_project.py --project project1`**. Put **`.docx`** files under **`workspace/project1/input_docs/`**.
 
 (See **[Backend setup with uv](#backend-setup-with-uv-first-time)** above for **`uv sync`**, **`.env`**, and **`uv run uvicorn …`**.)
 
