@@ -46,7 +46,7 @@ Route implementation: `backend/app/api/routers/project_pipeline.py`.
   - `planned` + persisted `reports/plan.md`.
 
 ### 3) Execute Stage
-- Service: `backend/app/services/project_execute.py`
+- Service: `backend/app/services/project_patching.py`
 - Uses:
   - global system prompt,
   - execute instruction from `instructions/execute.txt` (or fallback),

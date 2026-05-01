@@ -9,7 +9,7 @@ from app.models.project_pipeline import (
     PlanProjectRequest,
     PlanProjectResponse,
 )
-from app.services.project_execute import run_project_execute
+from app.services.project_patching import run_project_execute
 from app.services.project_init import run_project_init
 from app.services.project_plan import run_project_plan
 

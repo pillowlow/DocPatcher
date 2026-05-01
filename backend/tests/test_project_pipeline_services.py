@@ -15,7 +15,7 @@ from app.services.llm.artifact_sources import (
     load_project_init_instruction,
     load_project_plan_instruction,
 )
-from app.services.project_execute import run_project_execute
+from app.services.project_patching import run_project_execute
 from app.services.project_init import load_init_context_manifest, run_project_init
 from app.services.project_plan import run_project_plan
 
@@ -158,7 +158,7 @@ def test_run_project_execute_writes_patched_doc(tmp_path: Path, monkeypatch: pyt
     )
     fake_client = MagicMock()
     fake_client.responses.create.return_value = fake_resp
-    monkeypatch.setattr("app.services.project_execute.OpenAI", lambda api_key: fake_client)
+    monkeypatch.setattr("app.services.project_patching.OpenAI", lambda api_key: fake_client)
 
     out = run_project_execute(settings=settings)
     assert out.count == 1

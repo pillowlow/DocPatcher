@@ -137,7 +137,7 @@ def main() -> int:
     from app.services.extract_progress import emit_batch_begin, emit_batch_done, make_cli_stderr_progress
     from app.services.project_init import run_project_init
     from app.services.project_plan import run_project_plan
-    from app.services.project_execute import run_project_execute
+    from app.services.project_patching import run_project_execute
 
     get_settings.cache_clear()
     settings = get_settings()

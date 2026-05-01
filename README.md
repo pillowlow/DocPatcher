@@ -104,7 +104,7 @@ The script prints the resolved **project root** line to **stderr** after JSON on
 Implementation:
 - Init stage: **`backend/app/services/project_init.py`**
 - Plan stage: **`backend/app/services/project_plan.py`**
-- Execute stage: **`backend/app/services/project_execute.py`**
+- Execute stage: **`backend/app/services/project_patching.py`**
 - API route: **`backend/app/api/routers/project_pipeline.py`**
 
 When init processes multiple files, per-document extraction outputs are distinct and now include structure preservation:
