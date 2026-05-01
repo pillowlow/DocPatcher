@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run extract / summarize for **one workspace project** (same as ``POST /parse/extract-overview``).
+"""Run project pipeline stages for **one workspace project**.
 
 **Project root** is ``WORKSPACE_ROOT / PROJECT_NAME`` (resolved in ``app/services/workspace.py``).
 
@@ -9,14 +9,18 @@ Set it **before** this script runs using any of:
 2. ``PROJECT_NAME`` and optional ``WORKSPACE_ROOT`` in ``backend/.env``.
 3. First line of ``workspace/.current_project`` from ``python scripts/set_current_project.py <key>``.
 
-**Default:** omit the input path to process every ``*.docx`` in that project’s ``input_docs/``.
+Stages:
+
+- ``init``: one-time extraction context build (single file or all ``input_docs/*.docx``).
+- ``plan``: ask model to produce/iterate ``reports/plan.md`` (may return questions).
+- ``execute``: run model-guided edits and write ``*_patched.docx`` into ``output_docs/``.
 
 Examples (run from the ``backend/`` directory)::
 
     cd backend
-    python scripts/execute_project.py --project project1/example_project
-    python scripts/execute_project.py -p project1/example_project -w ../workspace
-    python scripts/execute_project.py --project my/nested/project --input path/to/one.docx
+    python scripts/execute_project.py init --project project1
+    python scripts/execute_project.py plan --project project1 --instruction "Revise consent language"
+    python scripts/execute_project.py execute --project project1
 """
 
 from __future__ import annotations
@@ -55,6 +59,11 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
+        "stage",
+        choices=["init", "plan", "execute"],
+        help="Pipeline stage to run",
+    )
+    parser.add_argument(
         "--workspace-root",
         "-w",
         metavar="DIR",
@@ -82,7 +91,30 @@ def main() -> int:
     parser.add_argument(
         "--doc-id",
         default=None,
-        help="Only for a single file; default is derived from the filename stem",
+        help="Only used by init with a single input file; default is derived from filename stem",
+    )
+    parser.add_argument(
+        "--instruction",
+        default=None,
+        help="Required by plan: user instruction that drives plan.md",
+    )
+    parser.add_argument(
+        "--answer",
+        action="append",
+        default=[],
+        help="Optional Q/A answer line for plan iteration; repeatable flag",
+    )
+    parser.add_argument(
+        "--doc",
+        dest="selected_doc_ids",
+        action="append",
+        default=[],
+        help="Optional doc_id selection for plan/execute; repeatable flag",
+    )
+    parser.add_argument(
+        "--plan-path",
+        default=None,
+        help="Optional explicit plan markdown path for execute (default reports/plan.md)",
     )
     parser.add_argument(
         "--quiet",
@@ -101,16 +133,11 @@ def main() -> int:
 
     # Import after env overrides so Settings resolves the right project root.
     from app.core.settings import get_settings
-    from app.services.extract_progress import (
-        emit_batch_begin,
-        emit_batch_done,
-        make_cli_stderr_progress,
-    )
-    from app.services.project_extract import (
-        run_extract_overview,
-        run_extract_overview_all_input_docs,
-        stable_doc_id_from_filename,
-    )
+    from app.models.project_pipeline import ExecuteProjectRequest, PlanProjectRequest
+    from app.services.extract_progress import emit_batch_begin, emit_batch_done, make_cli_stderr_progress
+    from app.services.project_init import run_project_init
+    from app.services.project_plan import run_project_plan
+    from app.services.project_execute import run_project_execute
 
     get_settings.cache_clear()
     settings = get_settings()
@@ -118,24 +145,37 @@ def main() -> int:
     on_progress = None if args.quiet else make_cli_stderr_progress()
 
     try:
-        if doc_path:
-            inp = Path(doc_path)
-            doc_id = args.doc_id or stable_doc_id_from_filename(inp, 1)
-            emit_batch_begin(on_progress, 1)
-            result = run_extract_overview(
-                input_doc_path=inp,
-                doc_id=doc_id,
-                settings=settings,
-                on_progress=on_progress,
-                batch_doc_index=1,
-                batch_doc_total=1,
-            )
-            emit_batch_done(on_progress, 1)
-        else:
+        if args.stage == "init":
             if args.doc_id:
-                print("--doc-id applies only when a single input file is given", file=sys.stderr)
+                print("--doc-id is no longer used in init stage; doc id is derived from filename", file=sys.stderr)
+            emit_batch_begin(on_progress, 1)
+            result = run_project_init(settings=settings, input_doc_path=doc_path).model_dump()
+            emit_batch_done(on_progress, 1)
+        elif args.stage == "plan":
+            req = PlanProjectRequest(
+                user_instruction=(args.instruction or "").strip(),
+                selected_doc_ids=args.selected_doc_ids or None,
+                qa_answers=args.answer,
+            )
+            if not req.user_instruction:
+                print("--instruction is required for plan stage", file=sys.stderr)
                 return 2
-            result = run_extract_overview_all_input_docs(settings=settings, on_progress=on_progress)
+            result = run_project_plan(
+                settings=settings,
+                user_instruction=req.user_instruction,
+                selected_doc_ids=req.selected_doc_ids,
+                qa_answers=req.qa_answers,
+            ).model_dump()
+        else:
+            req = ExecuteProjectRequest(
+                selected_doc_ids=args.selected_doc_ids or None,
+                plan_path=args.plan_path,
+            )
+            result = run_project_execute(
+                settings=settings,
+                selected_doc_ids=req.selected_doc_ids,
+                plan_path=req.plan_path,
+            ).model_dump()
     except (ValueError, FileNotFoundError) as e:
         print(e, file=sys.stderr)
         return 1

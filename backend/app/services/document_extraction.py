@@ -129,12 +129,16 @@ def extract_overview_and_content_sheet(
     settings: Settings,
     project_paths: ResolvedProjectPaths,
     doc_id: str,
+    task_instruction_filename: str | None = None,
 ) -> dict[str, str | int]:
     if not blocks:
         raise ValueError("No paragraphs to extract; DOCX appears empty.")
 
     agent_system_prompt = load_agent_system_prompt(project_paths.root)
-    task_instruction = load_task_instruction(project_paths.root)
+    task_instruction = load_task_instruction(
+        project_paths.root,
+        filename=task_instruction_filename,
+    )
     paragraph_listing, source_file_name = format_paragraph_block_listing(blocks)
     document_section = compose_input_document_section(
         doc_id=doc_id,

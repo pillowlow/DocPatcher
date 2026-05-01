@@ -76,50 +76,61 @@ python scripts/init_workspace_project.py nested/new_project
 
 **Which folder is the project root?** It is always **`WORKSPACE_ROOT / project_key`**. If you do nothing, defaults are the **`workspace`** directory next to **`backend/`** and **`project_key`** from **`PROJECT_NAME`** in **`backend/.env`**, else **`workspace/.current_project`**, else **`example_project`**.
 
-Run **extract / summarize** from the shell (same behaviour as **`POST /parse/extract-overview`**). The entrypoint lives at **`backend/scripts/execute_project.py`** — **`cd backend`** first so workspace-relative paths behave like the API:
+Run the staged project pipeline from shell using **`backend/scripts/execute_project.py`** — **`cd backend`** first so workspace-relative paths behave like the API:
 
 ```bash
 cd backend
 
-# Point at a project for this run only (overrides .env for this process)
-python scripts/execute_project.py --project project1
-python scripts/execute_project.py -p project1/example_project ../workspace/project1/example_project/input_docs/your.docx
+# 1) Init stage: extract once to reusable context artifacts
+python scripts/execute_project.py init --project project1
 
-# Rely on backend/.env / workspace/.current_project
-python scripts/execute_project.py
+# Optional single-file init
+python scripts/execute_project.py init --project project1 --input ../workspace/project1/input_docs/your.docx
 
-# Batch: every *.docx in that project’s input_docs/
-python scripts/execute_project.py --project project1
+# 2) Plan stage: produce reports/plan.md (or return clarification questions)
+python scripts/execute_project.py plan --project project1 --instruction "Update consent wording and reviewer response alignment."
 
-# Single file path (still set --project if not in .env)
-python scripts/execute_project.py --project project1 ../workspace/project1/input_docs/your.docx
+# Optional iterative answers from user
+python scripts/execute_project.py plan --project project1 --instruction "..." --answer "Use formal tone" --answer "Keep section order"
+
+# 3) Execute stage: run model-guided edits and output *_patched.docx
+python scripts/execute_project.py execute --project project1
 ```
 
-Or equivalently **`uv run python scripts/execute_project.py …`** from **`backend/`**.
+Or equivalently **`uv run python scripts/execute_project.py <stage> …`** from **`backend/`**.
 
-The script prints the resolved **project root** line to **stderr** after the JSON on stdout.
+The script prints the resolved **project root** line to **stderr** after JSON on stdout.
 
-Implementation: **`backend/app/services/project_extract.py`** (`run_extract_overview`, `run_extract_overview_all_input_docs`). **`POST /parse/extract-overview`** calls the same service; omit **`input_doc_path`** in the JSON body to process all **`input_docs/*.docx`**.
+Implementation:
+- Init stage: **`backend/app/services/project_init.py`**
+- Plan stage: **`backend/app/services/project_plan.py`**
+- Execute stage: **`backend/app/services/project_execute.py`**
+- API route: **`backend/app/api/routers/project_pipeline.py`**
 
-When multiple files run in one batch, **`blocks.json`** is overwritten per file (**last sorted file wins**); per-document outputs use distinct names (**`{doc_id}_overview.md`**, etc.).
+When init processes multiple files, per-document extraction outputs are distinct (**`{doc_id}_overview.md`**, etc.) and a shared manifest is written to **`intermediate/init_context_manifest.json`**.
 
 Set **`PROJECT_NAME`** in **`backend/.env`** when you do not rely on **`workspace/.current_project`**. Restart the API after changing env or **`.current_project`** (`get_settings()` is cached).
 
 ### Example project: **`workspace/project1/`**
 
-Reviewer-style prompts live here:
+Prompt/instruction artifacts live here:
 
-- **System prompt:** **`workspace/project1/prompts/agent_system.md`** (loaded as OpenAI **`instructions`** for extract-overview).
-- **Task prompt:** **`workspace/project1/instructions/full_document_extraction.txt`** (exhaustive extraction / capability test wording; must still satisfy the pipeline JSON schema).
+- **System prompt:** **`workspace/project1/prompts/agent_system.md`** (global system prompt used by init, plan, and execute).
+- **Init instruction:** **`workspace/project1/instructions/init.txt`** (optional override; builtin template used if missing). Init is extraction/overview only.
+- **Plan instruction:** **`workspace/project1/instructions/plan.txt`** (optional override; builtin template used if missing).
+- **Execute instruction:** **`workspace/project1/instructions/execute.txt`** (optional override; builtin template used if missing).
 
-Use **`PROJECT_NAME=project1`** or, from **`backend/`**, **`python scripts/execute_project.py --project project1`**. Put **`.docx`** files under **`workspace/project1/input_docs/`**.
+Use **`PROJECT_NAME=project1`** or, from **`backend/`**, run a stage command such as **`python scripts/execute_project.py init --project project1`**. Put **`.docx`** files under **`workspace/project1/input_docs/`**.
 
 (See **[Backend setup with uv](#backend-setup-with-uv-first-time)** above for **`uv sync`**, **`.env`**, and **`uv run uvicorn …`**.)
 
 ## Pipeline Endpoints
 
 - `POST /parse` with `input_doc_path` and `doc_id`
-- `POST /parse/extract-overview` (**requires `OPENAI_API_KEY`**): body may include **`input_doc_path`** + optional **`doc_id`**, or omit **`input_doc_path`** to process **every `input_docs/*.docx`** in the active project. Writes under **`intermediate/`** as above (batch ⇒ last file determines **`blocks.json`**).
+- `POST /project/init` (**requires `OPENAI_API_KEY`**): run extraction once and write reusable init context manifest.
+- `POST /project/plan` (**requires `OPENAI_API_KEY`**): create or iterate `reports/plan.md`; may return clarification questions first.
+- `POST /plan` alias for `/project/plan`.
+- `POST /project/execute` (**requires `OPENAI_API_KEY`**): use approved plan + picked context to generate patched outputs in `output_docs/` as `<original>_patched.docx`.
 
 - `POST /retrieve` with `requirement_text`
 - `POST /propose` with `requirement_text`
@@ -127,6 +138,9 @@ Use **`PROJECT_NAME=project1`** or, from **`backend/`**, **`python scripts/execu
 - `PATCH /change-table/{change_id}` with `{ "status": "approved" | "rejected" }`
 - `POST /apply` with `source_doc_path`, `output_doc_name`, `dry_run`
 - `POST /report` with `run_id`
+
+Deprecated:
+- `POST /parse/extract-overview` is removed from the default workflow in favor of `/project/init`.
 
 ## Safety
 

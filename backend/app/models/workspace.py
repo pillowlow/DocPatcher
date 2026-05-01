@@ -16,6 +16,7 @@ class WorkspaceLayout(BaseModel):
     intermediate: str = "intermediate"
     change_tables: str = "change_tables"
     reports: str = "reports"
+    plan_report: str = "plan.md"
     output_docs: str = "output_docs"
 
 
@@ -59,6 +60,11 @@ class ResolvedProjectPaths(BaseModel):
     @property
     def reports_dir(self) -> Path:
         return self.root / self.subdirs.reports
+
+    @computed_field
+    @property
+    def plan_report_path(self) -> Path:
+        return self.reports_dir / self.subdirs.plan_report
 
     @computed_field
     @property

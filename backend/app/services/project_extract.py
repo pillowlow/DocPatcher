@@ -65,6 +65,7 @@ def run_extract_overview(
     on_progress: ProgressCallback | None = None,
     batch_doc_index: int = 1,
     batch_doc_total: int = 1,
+    task_instruction_filename: str | None = None,
 ) -> dict[str, str | int]:
     """Parse ``input_doc_path``, call the model, write overview + sheet + JSON under ``intermediate/``.
 
@@ -116,6 +117,7 @@ def run_extract_overview(
         settings=settings,
         project_paths=settings.project_paths,
         doc_id=doc_id,
+        task_instruction_filename=task_instruction_filename,
     )
     _notify(
         on_progress,
@@ -154,6 +156,7 @@ def run_extract_overview_all_input_docs(
     *,
     settings: Settings,
     on_progress: ProgressCallback | None = None,
+    task_instruction_filename: str | None = None,
 ) -> dict[str, Any]:
     """Process every ``*.docx`` in ``input_docs/`` (sorted). Last file determines ``blocks.json``."""
 
@@ -179,6 +182,7 @@ def run_extract_overview_all_input_docs(
                 on_progress=on_progress,
                 batch_doc_index=idx,
                 batch_doc_total=len(paths),
+                task_instruction_filename=task_instruction_filename,
             )
         )
 
