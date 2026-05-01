@@ -10,7 +10,7 @@ router = APIRouter(tags=["change-table"])
 
 @router.get("/change-table")
 def get_change_table(settings: Settings = Depends(get_settings)) -> dict[str, list[dict]]:
-    path = settings.artifact_root / "change_tables" / "change_table.csv"
+    path = settings.project_paths.change_tables_dir / "change_table.csv"
     rows = load_change_table_csv(path)
     return {"rows": [row.model_dump() for row in rows]}
 
@@ -19,7 +19,7 @@ def get_change_table(settings: Settings = Depends(get_settings)) -> dict[str, li
 def update_change_status(
     change_id: str, payload: ChangeStatusUpdate, settings: Settings = Depends(get_settings)
 ) -> dict[str, str]:
-    path = settings.artifact_root / "change_tables" / "change_table.csv"
+    path = settings.project_paths.change_tables_dir / "change_table.csv"
     rows = load_change_table_csv(path)
     for row in rows:
         if row.change_id == change_id:

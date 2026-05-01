@@ -22,12 +22,12 @@ class ApplyRequest(BaseModel):
 def apply_changes(
     request: ApplyRequest, settings: Settings = Depends(get_settings)
 ) -> dict[str, int | str]:
-    table_path = settings.artifact_root / "change_tables" / "change_table.csv"
+    table_path = settings.project_paths.change_tables_dir / "change_table.csv"
     all_rows = load_change_table_csv(table_path)
     approved_rows = [row for row in all_rows if row.status == "approved"]
 
     source_doc = Path(request.source_doc_path)
-    output_doc = settings.artifact_root / "output_docs" / request.output_doc_name
+    output_doc = settings.project_paths.output_docs_dir / request.output_doc_name
     result = apply_changes_to_docx(
         source_doc=source_doc,
         output_doc=output_doc,

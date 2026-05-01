@@ -6,6 +6,7 @@ import pytest
 
 from app.core.settings import Settings
 from app.models.block import Block, BlockPosition
+from app.models.workspace import ResolvedProjectPaths
 from app.services.document_extraction import (
     ContentSheetRow,
     DocumentExtractionResult,
@@ -14,7 +15,7 @@ from app.services.document_extraction import (
     run_openai_document_extraction,
     write_extraction_csv,
 )
-from app.services.llm.example_project_sources import (
+from app.services.llm.artifact_sources import (
     load_agent_system_prompt,
     load_task_instruction,
 )
@@ -207,7 +208,7 @@ def test_extract_overview_loads_three_sources_into_api_call(
     extract_overview_and_content_sheet(
         blocks=blocks,
         settings=settings,
-        artifact_root=tmp_path,
+        project_paths=ResolvedProjectPaths(root=tmp_path),
         doc_id="DOC001",
     )
     assert captured.get("instructions") == "AGENT SYSTEM FROM FILE"

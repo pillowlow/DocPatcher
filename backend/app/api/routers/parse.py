@@ -23,7 +23,7 @@ def parse_document(
 ) -> dict[str, str | int]:
     input_path = Path(request.input_doc_path)
     blocks = parse_docx_to_blocks(input_path, doc_id=request.doc_id)
-    output_path = settings.artifact_root / "intermediate" / "blocks.json"
+    output_path = settings.project_paths.intermediate_dir / "blocks.json"
     write_json(output_path, [block.model_dump() for block in blocks])
     return {"blocks": len(blocks), "blocks_path": str(output_path)}
 
@@ -46,12 +46,12 @@ def parse_and_extract_overview(
         parsed_result = extract_overview_and_content_sheet(
             blocks=blocks,
             settings=settings,
-            artifact_root=settings.artifact_root,
+            project_paths=settings.project_paths,
             doc_id=request.doc_id,
         )
     except (ValueError, FileNotFoundError) as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    blocks_path = settings.artifact_root / "intermediate" / "blocks.json"
+    blocks_path = settings.project_paths.intermediate_dir / "blocks.json"
     write_json(blocks_path, [block.model_dump() for block in blocks])
     return {
         **parsed_result,

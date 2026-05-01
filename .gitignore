@@ -9,7 +9,8 @@ __pycache__/
 venv/
 dist/
 build/
-example_project/intermediate/*.json
-example_project/change_tables/*.csv
-example_project/reports/*.json
-example_project/output_docs/*.docx
+workspace/.current_project
+workspace/**/intermediate/*.json
+workspace/**/change_tables/*.csv
+workspace/**/reports/*.json
+workspace/**/output_docs/*.docx

@@ -7,8 +7,9 @@ from pydantic import BaseModel, Field
 
 from app.core.settings import Settings
 from app.models.block import Block
+from app.models.workspace import ResolvedProjectPaths
 from app.services.artifacts import write_json
-from app.services.llm.example_project_sources import (
+from app.services.llm.artifact_sources import (
     load_agent_system_prompt,
     load_task_instruction,
 )
@@ -122,14 +123,14 @@ def extract_overview_and_content_sheet(
     *,
     blocks: list[Block],
     settings: Settings,
-    artifact_root: Path,
+    project_paths: ResolvedProjectPaths,
     doc_id: str,
 ) -> dict[str, str | int]:
     if not blocks:
         raise ValueError("No paragraphs to extract; DOCX appears empty.")
 
-    agent_system_prompt = load_agent_system_prompt(artifact_root)
-    task_instruction = load_task_instruction(artifact_root)
+    agent_system_prompt = load_agent_system_prompt(project_paths.root)
+    task_instruction = load_task_instruction(project_paths.root)
     paragraph_listing, source_file_name = format_paragraph_block_listing(blocks)
     document_section = compose_input_document_section(
         doc_id=doc_id,
@@ -150,7 +151,7 @@ def extract_overview_and_content_sheet(
         temperature=settings.llm_temperature,
     )
 
-    intermediate = artifact_root / "intermediate"
+    intermediate = project_paths.intermediate_dir
     overview_path = intermediate / f"{doc_id}_overview.md"
     csv_path = intermediate / f"{doc_id}_content_sheet.csv"
     raw_json_path = intermediate / f"{doc_id}_extraction.json"

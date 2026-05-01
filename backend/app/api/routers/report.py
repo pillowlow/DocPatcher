@@ -18,7 +18,7 @@ class ReportRequest(BaseModel):
 def generate_report(
     payload: ReportRequest, settings: Settings = Depends(get_settings)
 ) -> dict[str, str]:
-    table_path = settings.artifact_root / "change_tables" / "change_table.csv"
+    table_path = settings.project_paths.change_tables_dir / "change_table.csv"
     rows = load_change_table_csv(table_path)
     report_payload = {
         "run_id": payload.run_id,
@@ -30,6 +30,6 @@ def generate_report(
             "applied": len([r for r in rows if r.status == "applied"]),
         },
     }
-    report_path = settings.artifact_root / "reports" / "run_report.json"
+    report_path = settings.project_paths.reports_dir / "run_report.json"
     write_run_report(report_path, report_payload)
     return {"report_path": str(report_path)}

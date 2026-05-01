@@ -22,8 +22,8 @@ class ProposeRequest(BaseModel):
 def propose(
     request: ProposeRequest, settings: Settings = Depends(get_settings)
 ) -> dict[str, str | int]:
-    blocks_path = settings.artifact_root / "intermediate" / "blocks.json"
-    candidates_path = settings.artifact_root / "intermediate" / "candidates.json"
+    blocks_path = settings.project_paths.intermediate_dir / "blocks.json"
+    candidates_path = settings.project_paths.intermediate_dir / "candidates.json"
     blocks = [Block(**record) for record in read_json(blocks_path)]
     blocks_by_id = {block.block_id: block for block in blocks}
     candidate_buffer = CandidateBuffer(**read_json(candidates_path))
@@ -33,6 +33,6 @@ def propose(
 
     provider = build_provider(settings)
     rows = propose_changes(requirement, blocks_by_id, candidate_buffer, provider)
-    output_path = settings.artifact_root / "change_tables" / "change_table.csv"
+    output_path = settings.project_paths.change_tables_dir / "change_table.csv"
     save_change_table_csv(output_path, rows)
     return {"change_rows": len(rows), "change_table_path": str(output_path)}

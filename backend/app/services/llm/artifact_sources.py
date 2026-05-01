@@ -1,4 +1,4 @@
-"""Load LLM-facing text from ``ARTIFACT_ROOT``: task instructions, agent system prompt, (document body built elsewhere)."""
+"""Load fixed LLM text assets from an active **project root** (``instructions/``, ``prompts/``)."""
 
 from pathlib import Path
 
@@ -11,26 +11,26 @@ DEFAULT_AGENT_SYSTEM_PROMPT_FILE = "agent_system.md"
 _ALLOWED_TEXT_SUFFIXES = frozenset({".txt", ".md"})
 
 
-def task_instructions_dir(artifact_root: Path) -> Path:
-    return artifact_root / INSTRUCTIONS_SUBDIR
+def task_instructions_dir(project_root: Path) -> Path:
+    return project_root / INSTRUCTIONS_SUBDIR
 
 
-def agent_prompts_dir(artifact_root: Path) -> Path:
-    return artifact_root / PROMPTS_SUBDIR
+def agent_prompts_dir(project_root: Path) -> Path:
+    return project_root / PROMPTS_SUBDIR
 
 
-def _load_text_under_artifact(
-    artifact_root: Path,
+def _load_text_under_project(
+    project_root: Path,
     subdir: str,
     filename: str,
     *,
     role_label: str,
 ) -> str:
-    path = artifact_root / subdir / filename
+    path = project_root / subdir / filename
     if not path.is_file():
         raise FileNotFoundError(
             f"{role_label} file not found: {path}. "
-            f"Create {filename!r} under {artifact_root / subdir!s}."
+            f"Create {filename!r} under {project_root / subdir!s}."
         )
     if path.suffix.lower() not in _ALLOWED_TEXT_SUFFIXES:
         raise ValueError(
@@ -42,22 +42,22 @@ def _load_text_under_artifact(
     return text
 
 
-def load_task_instruction(artifact_root: Path, filename: str | None = None) -> str:
-    """What to do with the document(s): ``ARTIFACT_ROOT/instructions/{file}``."""
+def load_task_instruction(project_root: Path, filename: str | None = None) -> str:
+    """Task text from ``{project_root}/instructions/{file}``."""
     rel = filename or DEFAULT_TASK_INSTRUCTION_FILE
-    return _load_text_under_artifact(
-        artifact_root,
+    return _load_text_under_project(
+        project_root,
         INSTRUCTIONS_SUBDIR,
         rel,
         role_label="Task instruction",
     )
 
 
-def load_agent_system_prompt(artifact_root: Path, filename: str | None = None) -> str:
-    """Agent persona / system behaviour: ``ARTIFACT_ROOT/prompts/{file}``."""
+def load_agent_system_prompt(project_root: Path, filename: str | None = None) -> str:
+    """Agent system prompt from ``{project_root}/prompts/{file}``."""
     rel = filename or DEFAULT_AGENT_SYSTEM_PROMPT_FILE
-    return _load_text_under_artifact(
-        artifact_root,
+    return _load_text_under_project(
+        project_root,
         PROMPTS_SUBDIR,
         rel,
         role_label="Agent system prompt",

@@ -9,7 +9,7 @@ class MockProvider(LLMProvider):
         lower_req = requirement.text.lower()
         should_change = any(token in block.text.lower() for token in lower_req.split())
         proposed_text = (
-            f"{block.text} [POC suggestion: {requirement.text}]"
+            f"{block.text} [draft suggestion: {requirement.text}]"
             if should_change
             else block.text
         )
