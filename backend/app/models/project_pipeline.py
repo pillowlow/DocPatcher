@@ -20,6 +20,7 @@ class InitProjectResponse(BaseModel):
     count: int
     input_docs_dir: str
     context_manifest_path: str
+    project_overview_path: str
     documents: list[dict[str, str | int]]
 
 

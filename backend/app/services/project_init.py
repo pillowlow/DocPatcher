@@ -23,6 +23,39 @@ def _manifest_path(settings: Settings) -> Path:
     return settings.project_paths.intermediate_dir / "init_context_manifest.json"
 
 
+def _project_overview_path(settings: Settings) -> Path:
+    return settings.project_paths.intermediate_dir / "project_overview.md"
+
+
+def _build_project_overview_markdown(raw_documents: list[dict[str, str | int]]) -> str:
+    lines: list[str] = [
+        "# Project Overview",
+        "",
+        f"Total documents: {len(raw_documents)}",
+        "",
+    ]
+    for idx, doc in enumerate(raw_documents, start=1):
+        doc_id = str(doc.get("doc_id", f"DOC{idx:04d}"))
+        input_file = str(doc.get("input_file", ""))
+        overview_path = Path(str(doc.get("overview_path", "")))
+        overview_text = ""
+        if overview_path.is_file():
+            overview_text = overview_path.read_text(encoding="utf-8").strip()
+        if not overview_text:
+            overview_text = "_No overview content generated._"
+        lines.extend(
+            [
+                f"## {idx}. {doc_id}",
+                f"- input_file: `{input_file}`",
+                f"- overview_path: `{overview_path}`",
+                "",
+                overview_text,
+                "",
+            ]
+        )
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def run_project_init(
     *,
     settings: Settings,
@@ -61,10 +94,17 @@ def run_project_init(
     )
     manifest_path = _manifest_path(settings)
     write_json(manifest_path, manifest.model_dump())
+    project_overview_path = _project_overview_path(settings)
+    project_overview_path.parent.mkdir(parents=True, exist_ok=True)
+    project_overview_path.write_text(
+        _build_project_overview_markdown(raw_documents),
+        encoding="utf-8",
+    )
     return InitProjectResponse(
         count=len(documents),
         input_docs_dir=str(settings.project_paths.input_docs_dir.resolve()),
         context_manifest_path=str(manifest_path),
+        project_overview_path=str(project_overview_path),
         documents=raw_documents,
     )
 

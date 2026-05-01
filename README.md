@@ -107,7 +107,9 @@ Implementation:
 - Execute stage: **`backend/app/services/project_execute.py`**
 - API route: **`backend/app/api/routers/project_pipeline.py`**
 
-When init processes multiple files, per-document extraction outputs are distinct (**`{doc_id}_overview.md`**, etc.) and a shared manifest is written to **`intermediate/init_context_manifest.json`**.
+When init processes multiple files, per-document extraction outputs are distinct (**`{doc_id}_overview.md`**, etc.), and two project-level artifacts are written:
+- **`intermediate/init_context_manifest.json`** (machine-readable context index)
+- **`intermediate/project_overview.md`** (human-readable summary across all initialized documents)
 
 Set **`PROJECT_NAME`** in **`backend/.env`** when you do not rely on **`workspace/.current_project`**. Restart the API after changing env or **`.current_project`** (`get_settings()` is cached).
 
@@ -127,7 +129,7 @@ Use **`PROJECT_NAME=project1`** or, from **`backend/`**, run a stage command suc
 ## Pipeline Endpoints
 
 - `POST /parse` with `input_doc_path` and `doc_id`
-- `POST /project/init` (**requires `OPENAI_API_KEY`**): run extraction once and write reusable init context manifest.
+- `POST /project/init` (**requires `OPENAI_API_KEY`**): run extraction once and write reusable init context manifest plus `intermediate/project_overview.md`.
 - `POST /project/plan` (**requires `OPENAI_API_KEY`**): create or iterate `reports/plan.md`; may return clarification questions first.
 - `POST /plan` alias for `/project/plan`.
 - `POST /project/execute` (**requires `OPENAI_API_KEY`**): use approved plan + picked context to generate patched outputs in `output_docs/` as `<original>_patched.docx`.

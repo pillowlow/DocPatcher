@@ -31,6 +31,9 @@ def _make_settings(tmp_path: Path) -> Settings:
 def test_run_project_init_writes_manifest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     settings = _make_settings(tmp_path)
     seen: dict[str, object] = {}
+    intermediate = tmp_path / "intermediate"
+    intermediate.mkdir(parents=True)
+    (intermediate / "doc_a_overview.md").write_text("# A overview\nDetails", encoding="utf-8")
 
     monkeypatch.setattr(
         "app.services.project_init.run_extract_overview_all_input_docs",
@@ -51,6 +54,10 @@ def test_run_project_init_writes_manifest(tmp_path: Path, monkeypatch: pytest.Mo
     out = run_project_init(settings=settings)
     assert out.count == 1
     assert seen["task_instruction_filename"] == DEFAULT_PROJECT_INIT_INSTRUCTION_FILE
+    assert Path(out.project_overview_path).is_file()
+    merged = Path(out.project_overview_path).read_text(encoding="utf-8")
+    assert "Project Overview" in merged
+    assert "doc_a" in merged
     manifest = load_init_context_manifest(settings)
     assert isinstance(manifest, InitContextManifest)
     assert manifest.documents[0].doc_id == "doc_a"

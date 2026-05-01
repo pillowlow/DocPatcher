@@ -26,6 +26,7 @@ Route implementation: `backend/app/api/routers/project_pipeline.py`.
 - Purpose: extraction/overview context build only (no planning or editing actions).
 - Writes per-document extraction artifacts in `intermediate/`.
 - Writes a reusable manifest: `intermediate/init_context_manifest.json`.
+- Writes a project-level summary markdown: `intermediate/project_overview.md`.
 
 ### 2) Plan Stage
 - Service: `backend/app/services/project_plan.py`
