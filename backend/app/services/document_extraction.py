@@ -8,9 +8,13 @@ from pydantic import BaseModel, Field
 from app.core.settings import Settings
 from app.models.block import Block
 from app.services.artifacts import write_json
-from app.services.llm.extraction_prompts import (
-    build_extraction_input,
-    load_extraction_hints,
+from app.services.llm.example_project_sources import (
+    load_agent_system_prompt,
+    load_task_instruction,
+)
+from app.services.llm.openai_responses_composition import (
+    compose_input_document_section,
+    compose_openai_responses_user_input,
 )
 
 # JSON schema for Responses API structured output (minimal strict shape).
@@ -50,31 +54,31 @@ class DocumentExtractionResult(BaseModel):
     content_sheet_rows: list[ContentSheetRow]
 
 
-def format_blocks_numbered(blocks: list[Block]) -> tuple[str, str]:
+def format_paragraph_block_listing(blocks: list[Block]) -> tuple[str, str]:
+    """Turn parsed DOCX blocks into a stable multiline listing + source filename."""
     lines: list[str] = []
-    file_name = blocks[0].file_name if blocks else ""
+    source_file_name = blocks[0].file_name if blocks else ""
     for b in sorted(blocks, key=lambda x: x.position.paragraph_index):
         pid = b.position.paragraph_index
         lines.append(
             f"[{b.block_id}] paragraph_index={pid}\n<<<BLOCK>>>\n{b.text}\n<<<END BLOCK>>>\n"
         )
-    return ("\n".join(lines), file_name)
+    return ("\n".join(lines), source_file_name)
 
 
 def run_openai_document_extraction(
     client: OpenAI,
     *,
-    instructions: str,
+    agent_system_prompt: str,
+    user_input: str,
     model_name: str,
     temperature: float,
-    doc_id: str,
-    numbered_input: str,
-    file_name: str,
 ) -> DocumentExtractionResult:
+    """Call Responses API: ``instructions`` = agent system prompt; ``input`` = task + document."""
     resp = client.responses.create(
         model=model_name,
-        instructions=instructions,
-        input=build_extraction_input(doc_id, file_name, numbered_input),
+        instructions=agent_system_prompt,
+        input=user_input,
         temperature=temperature,
         text={
             "format": {
@@ -124,19 +128,26 @@ def extract_overview_and_content_sheet(
     if not blocks:
         raise ValueError("No paragraphs to extract; DOCX appears empty.")
 
-    numbered, file_name = format_blocks_numbered(blocks)
-
-    hints = load_extraction_hints(artifact_root)
+    agent_system_prompt = load_agent_system_prompt(artifact_root)
+    task_instruction = load_task_instruction(artifact_root)
+    paragraph_listing, source_file_name = format_paragraph_block_listing(blocks)
+    document_section = compose_input_document_section(
+        doc_id=doc_id,
+        source_file_name=source_file_name,
+        paragraph_block_listing=paragraph_listing,
+    )
+    user_input = compose_openai_responses_user_input(
+        task_instruction=task_instruction,
+        document_section=document_section,
+    )
 
     client = OpenAI(api_key=settings.openai_api_key)
     extraction = run_openai_document_extraction(
         client,
-        instructions=hints,
+        agent_system_prompt=agent_system_prompt,
+        user_input=user_input,
         model_name=settings.model_name,
         temperature=settings.llm_temperature,
-        doc_id=doc_id,
-        numbered_input=numbered,
-        file_name=file_name,
     )
 
     intermediate = artifact_root / "intermediate"

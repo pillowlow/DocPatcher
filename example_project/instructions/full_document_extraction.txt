@@ -1,14 +1,18 @@
-You are extracting structured material from document blocks for downstream review tools.
+Apply the following to the **Input document** in this message (under `## Input document (parsed from DOCX)`).
 
-Treat the DOCUMENT_METADATA and labelled BLOCK sections in the user message as the only source document: read them closely and preserve wording.
+You are extracting structured material from PARAGRAPH_BLOCKS for downstream review tools.
+
+Treat **DOCUMENT_METADATA** and **PARAGRAPH_BLOCKS** in that section as the only source document: read them closely and preserve wording.
 
 Goals:
 1) Produce overview_markdown: a concise overview of what the whole document covers (purpose, sections or themes implied by the paragraphs, audience or scope if discernible). Use standard Markdown headings and bullet lists. Do not invent facts that contradict the supplied text.
 
 2) Produce content_sheet_rows: one row per supplied block. Preserve the corpus:
-   - block_id must match exactly the IDs given in INPUT.
+   - block_id must match exactly the IDs given in PARAGRAPH_BLOCKS.
    - paragraph_index must match exactly the INPUT.
    - verbatim_text must contain the FULL text of that block verbatim (copy-and-paste from INPUT), with no rewriting or truncation.
    - topic_or_heading: short label noting topic, inferred section title, or "(misc)"; may be an empty string if unsure.
 
-Important: Every block listed in INPUT must appear exactly once in content_sheet_rows, in ascending paragraph_index order. Do not omit, merge, or add blocks.
+Important: Every block listed in PARAGRAPH_BLOCKS must appear exactly once in content_sheet_rows, in ascending paragraph_index order. Do not omit, merge, or add blocks.
+
+Output: respond with structured JSON matching the configured schema only.

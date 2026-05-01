@@ -10,13 +10,21 @@ from app.services.document_extraction import (
     ContentSheetRow,
     DocumentExtractionResult,
     extract_overview_and_content_sheet,
-    format_blocks_numbered,
+    format_paragraph_block_listing,
     run_openai_document_extraction,
     write_extraction_csv,
 )
-from app.services.llm.extraction_prompts import load_extraction_hints
+from app.services.llm.example_project_sources import (
+    load_agent_system_prompt,
+    load_task_instruction,
+)
+from app.services.llm.openai_responses_composition import (
+    compose_input_document_section,
+    compose_openai_responses_user_input,
+)
 
-def test_format_blocks_numbered_sorted_by_paragraph() -> None:
+
+def test_format_paragraph_block_listing_sorted_by_paragraph() -> None:
     blocks = [
         Block(
             block_id="D-B0001",
@@ -33,9 +41,32 @@ def test_format_blocks_numbered_sorted_by_paragraph() -> None:
             position=BlockPosition(paragraph_index=0),
         ),
     ]
-    text, fname = format_blocks_numbered(blocks)
+    text, fname = format_paragraph_block_listing(blocks)
     assert fname == "a.docx"
     assert text.index("first") < text.index("second")
+
+
+def test_compose_openai_responses_user_input_sections() -> None:
+    merged = compose_openai_responses_user_input(
+        task_instruction="Do the task.",
+        document_section="DOCUMENT_METADATA:\n...\n",
+    )
+    assert "## Task instruction" in merged
+    assert "Do the task." in merged
+    assert "## Input document (parsed from DOCX)" in merged
+    assert "DOCUMENT_METADATA" in merged
+
+
+def test_compose_input_document_section() -> None:
+    body = compose_input_document_section(
+        doc_id="X",
+        source_file_name="f.docx",
+        paragraph_block_listing="[X-B0000]",
+    )
+    assert "doc_id: X" in body
+    assert "source_file_name: f.docx" in body
+    assert "PARAGRAPH_BLOCKS" in body
+    assert "[X-B0000]" in body
 
 
 def test_write_extraction_csv(tmp_path: Path) -> None:
@@ -45,7 +76,7 @@ def test_write_extraction_csv(tmp_path: Path) -> None:
             block_id="D-B0001",
             paragraph_index=1,
             verbatim_text='say "hello"',
-            topic_or_heading='t',
+            topic_or_heading="t",
         ),
         ContentSheetRow(
             block_id="D-B0000",
@@ -80,40 +111,54 @@ def test_run_openai_document_extraction_parses_response() -> None:
 
     out = run_openai_document_extraction(
         fake_client,
-        instructions="You output JSON matching the schema.",
+        agent_system_prompt="You are an admin assistant.",
+        user_input="## Task instruction\n...\n",
         model_name="gpt-test",
         temperature=0.0,
-        doc_id="DOC001",
-        numbered_input="[DOC001-B0000] paragraph_index=0\n",
-        file_name="f.docx",
     )
     assert out.overview_markdown.startswith("# Overview")
     assert len(out.content_sheet_rows) == 1
     fake_client.responses.create.assert_called_once()
+    call_kw = fake_client.responses.create.call_args.kwargs
+    assert call_kw["instructions"] == "You are an admin assistant."
+    assert "## Task instruction" in call_kw["input"]
 
 
-def test_load_extraction_hints_reads_txt(tmp_path: Path) -> None:
+def test_load_task_instruction_reads_txt(tmp_path: Path) -> None:
+    inst = tmp_path / "instructions"
+    inst.mkdir()
+    (inst / "full_document_extraction.txt").write_text("Task line.", encoding="utf-8")
+    assert load_task_instruction(tmp_path) == "Task line."
+
+
+def test_load_agent_system_prompt_reads_md(tmp_path: Path) -> None:
     prompts = tmp_path / "prompts"
     prompts.mkdir()
-    (prompts / "full_document_extraction.txt").write_text("Hint line one.", encoding="utf-8")
-    assert load_extraction_hints(tmp_path) == "Hint line one."
+    (prompts / "agent_system.md").write_text("# Agent\nHello.", encoding="utf-8")
+    assert load_agent_system_prompt(tmp_path).startswith("# Agent")
 
 
-def test_load_extraction_hints_missing_file(tmp_path: Path) -> None:
-    prompts = tmp_path / "prompts"
-    prompts.mkdir()
+def test_load_task_instruction_missing_file(tmp_path: Path) -> None:
+    inst = tmp_path / "instructions"
+    inst.mkdir()
     with pytest.raises(FileNotFoundError, match=r"full_document_extraction"):
-        load_extraction_hints(tmp_path)
+        load_task_instruction(tmp_path)
 
 
-def test_extract_overview_loads_hints_from_artifact_root(
+def test_extract_overview_loads_three_sources_into_api_call(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    inst = tmp_path / "instructions"
+    inst.mkdir()
+    (inst / "full_document_extraction.txt").write_text(
+        "TASK FROM FILE",
+        encoding="utf-8",
+    )
     prompts = tmp_path / "prompts"
     prompts.mkdir()
-    (prompts / "full_document_extraction.txt").write_text(
-        "instructions from file",
+    (prompts / "agent_system.md").write_text(
+        "AGENT SYSTEM FROM FILE",
         encoding="utf-8",
     )
 
@@ -145,6 +190,7 @@ def test_extract_overview_loads_hints_from_artifact_root(
     class FakeResponses:
         def create(self, **kwargs):  # type: ignore[no-untyped-def]
             captured["instructions"] = kwargs.get("instructions")
+            captured["input"] = kwargs.get("input")
             return fake_resp
 
     class FakeClient:
@@ -164,4 +210,9 @@ def test_extract_overview_loads_hints_from_artifact_root(
         artifact_root=tmp_path,
         doc_id="DOC001",
     )
-    assert captured.get("instructions") == "instructions from file"
+    assert captured.get("instructions") == "AGENT SYSTEM FROM FILE"
+    user_turn = str(captured.get("input") or "")
+    assert "TASK FROM FILE" in user_turn
+    assert "## Input document (parsed from DOCX)" in user_turn
+    assert "PARAGRAPH_BLOCKS" in user_turn
+    assert "only" in user_turn

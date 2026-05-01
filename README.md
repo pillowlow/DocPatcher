@@ -21,7 +21,7 @@ Backend-first POC for controlled document revision with human-in-the-loop approv
 ## Pipeline Endpoints
 
 - `POST /parse` with `input_doc_path` and `doc_id`
-- `POST /parse/extract-overview` with the same body (requires `OPENAI_API_KEY`) — loads system hints from `ARTIFACT_ROOT/prompts/full_document_extraction.txt`, then writes `{doc_id}_overview.md`, `{doc_id}_content_sheet.csv`, and `{doc_id}_extraction.json` under `ARTIFACT_ROOT/intermediate` (parse also saves `blocks.json`). Set `ARTIFACT_ROOT` so it points at your repo `example_project` folder (e.g. `../example_project` when running uvicorn from `backend/`).
+- `POST /parse/extract-overview` with the same body (requires `OPENAI_API_KEY`) — loads three things from `ARTIFACT_ROOT`: (**1**) agent system prompt `prompts/agent_system.md` → OpenAI **`instructions`**; (**2**) task instruction `instructions/full_document_extraction.txt` → start of **`input`**; (**3**) parsed DOCX paragraph blocks → **Input document** section inside **`input`**. Writes `{doc_id}_overview.md`, `{doc_id}_content_sheet.csv`, and `{doc_id}_extraction.json` under `ARTIFACT_ROOT/intermediate` (and `blocks.json`). Set `ARTIFACT_ROOT` to your repo `example_project` folder (e.g. `../example_project` when running uvicorn from `backend/`).
 - `POST /retrieve` with `requirement_text`
 - `POST /propose` with `requirement_text`
 - `GET /change-table`
