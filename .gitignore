@@ -1,0 +1,15 @@
+.env
+*.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+dist/
+build/
+example_project/intermediate/*.json
+example_project/change_tables/*.csv
+example_project/reports/*.json
+example_project/output_docs/*.docx

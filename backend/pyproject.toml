@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling>=1.18.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "docpatcher-backend"
+version = "0.1.0"
+description = "DocPatcher API — controlled document revision with approvals"
+readme = "../README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi",
+  "uvicorn",
+  "pydantic",
+  "python-dotenv",
+  "python-docx",
+  "pandas",
+  "rapidfuzz",
+  "openai",
+]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
