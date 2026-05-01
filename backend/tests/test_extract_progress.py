@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from app.core.settings import Settings
-from app.models.block import Block, BlockPosition
+from app.models.doc_structure import DocStructureDocument, DocStructureXmlStats
 from app.models.workspace import ResolvedProjectPaths
 from app.services.extract_progress import (
     ExtractProgressEvent,
@@ -11,7 +11,7 @@ from app.services.extract_progress import (
     format_extract_progress_line,
     overall_percent,
 )
-from app.services.project_extract import run_extract_overview, run_extract_overview_all_input_docs
+from app.services.extract_engine import run_extract_overview, run_extract_overview_all_input_docs
 
 
 def test_overall_percent_batches_endpoints() -> None:
@@ -60,19 +60,47 @@ def test_format_extract_progress_line_doc_with_unicode_path() -> None:
 @pytest.fixture()
 def patched_extract_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "app.services.project_extract.parse_docx_to_blocks",
-        lambda docx_path, doc_id: [
-            Block(
-                block_id="X-B0000",
-                doc_id=doc_id,
-                file_name=docx_path.name,
-                text="x",
-                position=BlockPosition(paragraph_index=0),
-            )
-        ],
+        "app.services.extract_engine.analyze_docx_xml_parts",
+        lambda docx_path: DocStructureXmlStats(
+            xml_parts_total=2,
+            xml_parts_compressed_bytes=100,
+            xml_parts_uncompressed_bytes=200,
+        ),
     )
     monkeypatch.setattr(
-        "app.services.project_extract.extract_overview_and_content_sheet",
+        "app.services.extract_engine.parse_docx_to_blocks_and_structure",
+        lambda docx_path, doc_id, on_xml_part_done=None: (
+            [],
+            DocStructureDocument(
+                doc_id=doc_id,
+                file_name=docx_path.name,
+                xml_stats=DocStructureXmlStats(
+                    xml_parts_total=2,
+                    xml_parts_compressed_bytes=100,
+                    xml_parts_uncompressed_bytes=200,
+                ),
+                blocks=[],
+            ),
+        )
+        if on_xml_part_done is None
+        else (
+            on_xml_part_done("word/document.xml"),
+            on_xml_part_done("word/header1.xml"),
+            [],
+            DocStructureDocument(
+                doc_id=doc_id,
+                file_name=docx_path.name,
+                xml_stats=DocStructureXmlStats(
+                    xml_parts_total=2,
+                    xml_parts_compressed_bytes=100,
+                    xml_parts_uncompressed_bytes=200,
+                ),
+                blocks=[],
+            ),
+        )[2:],
+    )
+    monkeypatch.setattr(
+        "app.services.extract_engine.extract_overview_and_content_sheet",
         lambda **kwargs: {
             "doc_id": kwargs["doc_id"],
             "overview_path": "",
@@ -109,6 +137,9 @@ def test_run_extract_overview_emit_events(
     )
     expected = [
         ExtractProgressKind.DOC_BEGIN,
+        ExtractProgressKind.XML_SCAN_START,
+        ExtractProgressKind.XML_PART_DONE,
+        ExtractProgressKind.XML_PART_DONE,
         ExtractProgressKind.PARSE_DONE,
         ExtractProgressKind.LLM_START,
         ExtractProgressKind.LLM_DONE,
@@ -125,19 +156,32 @@ def test_run_extract_overview_all_batch_bookends(tmp_path: Path, monkeypatch: py
     (ind / "b.docx").write_bytes(b"b")
 
     monkeypatch.setattr(
-        "app.services.project_extract.parse_docx_to_blocks",
-        lambda docx_path, doc_id: [
-            Block(
-                block_id=f"{doc_id}-B0000",
-                doc_id=doc_id,
-                file_name=docx_path.name,
-                text="t",
-                position=BlockPosition(paragraph_index=0),
-            )
-        ],
+        "app.services.extract_engine.analyze_docx_xml_parts",
+        lambda docx_path: DocStructureXmlStats(
+            xml_parts_total=1,
+            xml_parts_compressed_bytes=50,
+            xml_parts_uncompressed_bytes=80,
+        ),
     )
     monkeypatch.setattr(
-        "app.services.project_extract.extract_overview_and_content_sheet",
+        "app.services.extract_engine.parse_docx_to_blocks_and_structure",
+        lambda docx_path, doc_id, on_xml_part_done=None: (
+            on_xml_part_done("word/document.xml") if on_xml_part_done else None,
+            [],
+            DocStructureDocument(
+                doc_id=doc_id,
+                file_name=docx_path.name,
+                xml_stats=DocStructureXmlStats(
+                    xml_parts_total=1,
+                    xml_parts_compressed_bytes=50,
+                    xml_parts_uncompressed_bytes=80,
+                ),
+                blocks=[],
+            ),
+        )[1:],
+    )
+    monkeypatch.setattr(
+        "app.services.extract_engine.extract_overview_and_content_sheet",
         lambda **kwargs: {
             "doc_id": kwargs["doc_id"],
             "overview_path": "",

@@ -107,9 +107,19 @@ Implementation:
 - Execute stage: **`backend/app/services/project_execute.py`**
 - API route: **`backend/app/api/routers/project_pipeline.py`**
 
-When init processes multiple files, per-document extraction outputs are distinct (**`{doc_id}_overview.md`**, etc.), and two project-level artifacts are written:
+When init processes multiple files, per-document extraction outputs are distinct and now include structure preservation:
+- **`{doc_id}_structure.json`** (full structure blocks from body/header/footer/tables including blank placeholders)
+  - includes formatting metadata (font, size, color, emphasis, paragraph alignment/spacing, and table/cell style hints)
+- **`{doc_id}_overview.md`**, **`{doc_id}_content_sheet.csv`**, **`{doc_id}_extraction.json`**
+
+Project-level artifacts written by init:
 - **`intermediate/init_context_manifest.json`** (machine-readable context index)
 - **`intermediate/project_overview.md`** (human-readable summary across all initialized documents)
+
+Progress reporting:
+- init now reports quick XML scan stats per document (`xml parts` + compressed size).
+- parse progress updates when each XML part is processed.
+- batch mode processes documents in parallel (one document per thread, up to 4 workers).
 
 Set **`PROJECT_NAME`** in **`backend/.env`** when you do not rely on **`workspace/.current_project`**. Restart the API after changing env or **`.current_project`** (`get_settings()` is cached).
 

@@ -11,7 +11,7 @@ from app.models.project_pipeline import (
     InitProjectResponse,
 )
 from app.services.artifacts import write_json
-from app.services.project_extract import (
+from app.services.extract_engine import (
     run_extract_overview,
     run_extract_overview_all_input_docs,
     stable_doc_id_from_filename,

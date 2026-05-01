@@ -5,7 +5,7 @@ from docx import Document
 
 from app.core.settings import Settings
 from app.models.workspace import ResolvedProjectPaths
-from app.services.project_extract import (
+from app.services.extract_engine import (
     allocate_unique_doc_ids,
     list_input_docx_files,
     run_extract_overview,
@@ -50,7 +50,7 @@ def test_run_extract_overview_all_batches_input_docs(tmp_path: Path, monkeypatch
         touched.append(f"{kwargs['input_doc_path'].name}:{kwargs['doc_id']}")
         return {"ok": 1, "doc_id": kwargs["doc_id"]}
 
-    monkeypatch.setattr("app.services.project_extract.run_extract_overview", fake)
+    monkeypatch.setattr("app.services.extract_engine.run_extract_overview", fake)
 
     out = run_extract_overview_all_input_docs(settings=settings)
     assert out["count"] == 2

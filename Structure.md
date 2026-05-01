@@ -22,11 +22,18 @@ Route implementation: `backend/app/api/routers/project_pipeline.py`.
 
 ### 1) Init Stage
 - Service: `backend/app/services/project_init.py`
-- Calls extraction (`project_extract` + `document_extraction`) once.
+- Calls extraction (`extract_engine` + `document_extraction`) once.
 - Purpose: extraction/overview context build only (no planning or editing actions).
-- Writes per-document extraction artifacts in `intermediate/`.
+- Writes per-document extraction artifacts in `intermediate/`:
+  - `{doc_id}_structure.json` (body/header/footer/table blocks with blank placeholders)
+    - block-level formatting metadata is captured for future round-trip editing (font/size/color/emphasis, paragraph format, cell/table style hints)
+  - `{doc_id}_overview.md`
+  - `{doc_id}_content_sheet.csv`
+  - `{doc_id}_extraction.json`
 - Writes a reusable manifest: `intermediate/init_context_manifest.json`.
 - Writes a project-level summary markdown: `intermediate/project_overview.md`.
+- Uses XML-part progress counters (scan total + per-part done).
+- Batch mode runs one document per thread (ThreadPool, up to 4 workers).
 
 ### 2) Plan Stage
 - Service: `backend/app/services/project_plan.py`
